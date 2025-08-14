@@ -5,6 +5,7 @@ A production-grade, cross-platform email response system built with **React, Mat
 <p align="center">
   <img src="Screenshot 2025-07-10 205616.png" alt="Email Input" width="45%" />
   <img src="Screenshot 2025-07-10 205639.png" alt="Generated Reply" width="45%" />
+  <img src="ExtensionImage.jpg" alt="Generated Reply" width="100%" />
 </p>
 
 ---
