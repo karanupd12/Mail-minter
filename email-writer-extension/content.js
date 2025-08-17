@@ -1,52 +1,52 @@
-console.log("Content script loaded");
+console.log("Gmail AI Reply Extension loaded");
 
-// Function to create the AI reply button
+// AI reply button
 function createAiButton() {
     const button = document.createElement('button');
-    
-    // Google-like styling
     button.style.cssText = `
-        background-color: #36053fff;
+        background-color: #1a73e8;
         color: white;
         border: none;
         border-radius: 4px;
         padding: 8px 16px;
         font-size: 14px;
-        font-weight: 500;
         cursor: pointer;
         margin-right: 8px;
-        box-shadow: 0 1px 2px rgba(60,64,67,0.3);
-        transition: background-color 0.2s;
     `;
-    
     button.innerHTML = '🤖 AI Reply';
-    button.setAttribute('title', 'Generate AI Reply');
-    
-    // Hover effect
     button.onmouseover = () => button.style.backgroundColor = '#1557b0';
     button.onmouseout = () => button.style.backgroundColor = '#1a73e8';
-    
     return button;
 }
 
-// Get email content
+// Get email content from the conversation
 function getEmailContent() {
-    // Try multiple selectors for email content
-    const selectors = ['.h7', '.a3s.aiL', '.gmail_quote', '[role="presentation"]'];
-    
+    const selectors = [
+        '.h7',              // Message body in conversation
+        '.a3s.aiL',         // Alternative message body
+        '.ii.gt .a3s'       // Message in thread
+    ];
+
     for (const selector of selectors) {
-        const content = document.querySelector(selector);
-        if (content) {
-            return content.innerText.trim();
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+            let content = elements[elements.length - 1].innerText.trim();
+            content = cleanEmailContent(content);
+            if (content) return content;
         }
     }
-    
     return '';
 }
 
-// Find compose toolbar
+// Remove email headers and metadata
+function cleanEmailContent(rawContent) {
+    console.log('Raw content before cleaning:', rawContent);
+    return rawContent.trim();
+}
+
+// Finding the compose toolbar
 function findComposeToolbar() {
-    const selectors = ['.aDh', '.btC', '[role="dialog"] .aDh', '.gU.Up'];
+    const selectors = ['.btC', '.aDh', '.gU.Up'];
     for (const selector of selectors) {
         const toolbar = document.querySelector(selector);
         if (toolbar) return toolbar;
@@ -54,81 +54,87 @@ function findComposeToolbar() {
     return null;
 }
 
-// Inject button into Gmail
-function injectButton() {
-    // Remove existing button
-    const existingButton = document.querySelector('.ai-reply-button');
-    if (existingButton) existingButton.remove();
+// Find the compose text box
+function findComposeBox() {
+    const selectors = [
+        '[role="textbox"][g_editable="true"]',
+        '[contenteditable="true"].Am'
+    ];
+    for (const selector of selectors) {
+        const box = document.querySelector(selector);
+        if (box) return box;
+    }
+    return null;
+}
 
-    const toolBar = findComposeToolbar();
-    if (!toolBar) return;
+// Inject the AI reply button
+function injectButton() {
+    // Removing existing button
+    const existing = document.querySelector('.ai-reply-button');
+    if (existing) existing.remove();
+
+    const toolbar = findComposeToolbar();
+    if (!toolbar) return;
 
     const button = createAiButton();
-    button.classList.add('ai-reply-button');
+    button.className = 'ai-reply-button';
 
-    // Button click handler
     button.addEventListener('click', async () => {
         try {
             button.innerHTML = '⏳ Generating...';
             button.disabled = true;
 
             const emailContent = getEmailContent();
-            if (!emailContent) {
+            console.log('Raw email content:', emailContent);
+            console.log('Email content length:', emailContent ? emailContent.length : 0);
+            console.log('Email content type:', typeof emailContent);
+            
+            if (!emailContent || emailContent.trim().length === 0) {
                 throw new Error('No email content found');
             }
+
+            const requestBody = {
+                emailContent: emailContent, 
+                tone: 'professional'
+            };
+            
+            console.log('Sending to API:', JSON.stringify(requestBody, null, 2));
 
             const response = await fetch('http://localhost:8080/api/email/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    content: emailContent,
-                    tone: 'friendly'
-                })
+                body: JSON.stringify(requestBody)
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to generate reply');
-            }
+            if (!response.ok) throw new Error('Failed to generate reply');
 
-            const generatedReply = await response.text();
-            
-            // Insert into compose box
-            const composeBox = document.querySelector('[role="textbox"][g_editable="true"], [contenteditable="true"].Am');
-            if (composeBox) {
-                composeBox.focus();
-                composeBox.innerHTML += '<br><br>' + generatedReply;
-                
-                // Trigger input event
-                composeBox.dispatchEvent(new Event('input', { bubbles: true }));
-            } else {
+            const reply = await response.text();
+
+            const composeBox = findComposeBox();
+            if (!composeBox) {
                 throw new Error('Compose box not found');
             }
 
+            composeBox.focus();
+            composeBox.innerHTML += '<br><br>' + reply;
+            composeBox.dispatchEvent(new Event('input', { bubbles: true }));
+
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to generate reply: ' + error.message);
+            alert('Error: ' + error.message);
         } finally {
             button.innerHTML = '🤖 AI Reply';
             button.disabled = false;
         }
     });
 
-    toolBar.insertBefore(button, toolBar.firstChild);
+    toolbar.insertBefore(button, toolbar.firstChild);
 }
 
 // Watch for compose window changes
-const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-        const addedNodes = Array.from(mutation.addedNodes);
-        const hasComposeElements = addedNodes.some(node => 
-            node.nodeType === Node.ELEMENT_NODE &&
-            (node.matches('.aDh, .btC, [role="dialog"]') || 
-             node.querySelector('.aDh, .btC, [role="dialog"]'))
-        );
-
-        if (hasComposeElements) {
-            setTimeout(injectButton, 500);
-        }
+const observer = new MutationObserver(() => {
+    if (findComposeToolbar() && !document.querySelector('.ai-reply-button')) {
+        setTimeout(injectButton, 300);
     }
 });
 
@@ -137,7 +143,7 @@ observer.observe(document.body, {
     subtree: true
 });
 
-// Try to inject if compose is already open
+// Initial injection
 setTimeout(() => {
     if (findComposeToolbar()) injectButton();
 }, 1000);
