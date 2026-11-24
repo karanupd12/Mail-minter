@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.email</groupId>
-	<artifactId>email-writer</artifactId>
+	<artifactId>mail-minter</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>email-writer</name>
-	<description>Demo project for Spring Boot</description>
+	<name>mail-minter</name>
+	<description>AI-powered email reply generator (Spring Boot API + bundled React UI)</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -28,6 +28,9 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<node.version>v20.18.0</node.version>
+		<!-- Pass -DskipFrontend to skip the React build (e.g. for fast backend-only runs) -->
+		<skipFrontend>false</skipFrontend>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -82,6 +85,46 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<!-- Builds the React app in ./frontend; Vite writes it to target/classes/static so Spring Boot serves it -->
+			<plugin>
+				<groupId>com.github.eirslett</groupId>
+				<artifactId>frontend-maven-plugin</artifactId>
+				<version>1.15.1</version>
+				<configuration>
+					<workingDirectory>frontend</workingDirectory>
+					<installDirectory>target</installDirectory>
+					<skip>${skipFrontend}</skip>
+				</configuration>
+				<executions>
+					<execution>
+						<id>install-node-and-npm</id>
+						<goals>
+							<goal>install-node-and-npm</goal>
+						</goals>
+						<configuration>
+							<nodeVersion>${node.version}</nodeVersion>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm-install</id>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<configuration>
+							<arguments>ci</arguments>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm-build</id>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<configuration>
+							<arguments>run build</arguments>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

@@ -1,0 +1,10 @@
+.env
+.env.*
+.git
+target
+frontend/node_modules
+frontend/node
+extension
+.idea
+.vscode
+*.md
